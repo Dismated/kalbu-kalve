@@ -1,14 +1,6 @@
 (function () {
     'use strict';
 
-    /* ---------- Review bar: highlight placeholder content ---------- */
-    var phToggle = document.getElementById('ph-toggle');
-    if (phToggle) {
-        phToggle.addEventListener('change', function () {
-            document.body.classList.toggle('show-ph', phToggle.checked);
-        });
-    }
-
     /* ---------- Mobile menu ---------- */
     var toggle = document.querySelector('.nav-toggle');
     if (toggle) {

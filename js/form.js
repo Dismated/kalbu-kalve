@@ -4,7 +4,6 @@
     var form = document.getElementById('reg-form');
     if (!form) return;
 
-    var MENESIAI = ['Sausis', 'Vasaris', 'Kovas', 'Balandis', 'Gegužė', 'Birželis', 'Liepa', 'Rugpjūtis', 'Rugsėjis', 'Spalis', 'Lapkritis', 'Gruodis'];
     var now = new Date();
     var submitted = false;
 
@@ -29,11 +28,6 @@
     var activeIndex = -1;
     var options = [];
 
-    var city = function () {
-        var c = $('input[name="miestas"]:checked', form);
-        return c ? c.value : null;
-    };
-
     var setOther = function (on) {
         kitaField.hidden = !on;
         if (on) {
@@ -50,8 +44,6 @@
             setOther(false);
             kgId.value = k.id;
             kgInput.value = k.pavadinimas;
-            var radio = $('input[name="miestas"][value="' + k.miestas + '"]', form);
-            if (radio) radio.checked = true;
         }
         closeList();
         if (submitted) validate();
@@ -59,9 +51,8 @@
 
     var renderList = function () {
         var q = kkFold(kgInput.value.trim());
-        var c = city();
         var items = KK_DARZELIAI.filter(function (k) {
-            return (!c || k.miestas === c) && (!q || kkFold(k.pavadinimas + ' ' + k.rajonas).indexOf(q) !== -1);
+            return !q || kkFold(k.pavadinimas + ' ' + k.rajonas + ' ' + KK_MIESTAI[k.miestas]).indexOf(q) !== -1;
         });
         options = items.concat(['kita']);
         activeIndex = -1;
@@ -136,45 +127,24 @@
         selectKg(options[Number(li.getAttribute('data-i'))]);
     });
 
-    $$('input[name="miestas"]', form).forEach(function (r) {
-        r.addEventListener('change', function () {
-            var sel = KK_DARZELIAI.filter(function (k) {
-                return k.id === kgId.value;
-            })[0];
-            if (sel && sel.miestas !== r.value) {
-                kgId.value = '';
-                kgInput.value = '';
-            }
-            if (submitted) validate();
-        });
-    });
 
     /* ================= Children ================= */
     var childrenEl = $('#children');
     var tpl = $('#child-template');
     var childCount = 0;
 
+    /* Only speaks up when the child seems outside the 3–7 range */
     var ageHint = function (child) {
         var y = Number($('[data-name="metai"]', child).value);
-        var m = Number($('[data-name="menuo"]', child).value);
         var hint = $('.child__age', child);
-        if (!y || !m) {
+        var age = now.getFullYear() - y;
+        if (!y || (age >= 3 && age <= 7)) {
             hint.hidden = true;
             return;
         }
-        var months = (now.getFullYear() - y) * 12 + (now.getMonth() + 1 - m);
-        var age = Math.floor(months / 12);
         hint.hidden = false;
-        if (age < 3 || age > 7) {
-            hint.className = 'hint hint--info child__age';
-            hint.innerHTML =
-                '<svg class="icon" aria-hidden="true"><use href="#i-info"/></svg><span>Vaikui dabar ' +
-                Math.max(age, 0) +
-                ' m. Pamokėlės skirtos 3–7 m. vaikams – susisieksime ir aptarsime galimybes.</span>';
-        } else {
-            hint.className = 'hint child__age';
-            hint.textContent = 'Vaikui dabar ' + age + ' m. – puikiai tinka pamokėlėms.';
-        }
+        hint.innerHTML =
+            '<svg class="icon" aria-hidden="true"><use href="#i-info"/></svg><span>Pamokėlės skirtos 3–7 m. vaikams – susisieksime ir aptarsime galimybes.</span>';
     };
 
     var renumber = function () {
@@ -199,14 +169,8 @@
         for (var y = now.getFullYear() - 2; y >= now.getFullYear() - 8; y--) {
             yearSel.insertAdjacentHTML('beforeend', '<option value="' + y + '">' + y + '</option>');
         }
-        var monthSel = $('[data-name="menuo"]', node);
-        MENESIAI.forEach(function (name, i) {
-            monthSel.insertAdjacentHTML('beforeend', '<option value="' + (i + 1) + '">' + name + '</option>');
-        });
-        [yearSel, monthSel].forEach(function (s) {
-            s.addEventListener('change', function () {
-                ageHint(node);
-            });
+        yearSel.addEventListener('change', function () {
+            ageHint(node);
         });
         $('.child__remove', node).addEventListener('click', function () {
             node.remove();
@@ -244,7 +208,6 @@
             if (setError(field, bad)) errors.push(field);
         };
 
-        check($('[data-field="miestas"]', form), !city());
         check($('[data-field="darzelis"]', form), !kgId.value);
         if (kgId.value === 'kita') {
             check(kitaField, kitaInput.value.trim().length < 3);
@@ -255,10 +218,9 @@
         $$('.child', childrenEl).forEach(function (c) {
             check($('[data-field="vaikas"]', c), $('[data-name="vaikas"]', c).value.trim().length < 2);
             check($('[data-field="metai"]', c), !$('[data-name="metai"]', c).value);
-            check($('[data-field="menuo"]', c), !$('[data-name="menuo"]', c).value);
         });
 
-        check($('[data-field="tevai"]', form), $('#tevai').value.trim().length < 3);
+        check($('[data-field="tevai"]', form), $('#tevai').value.trim().length < 2);
         check($('[data-field="telefonas"]', form), !/^\d{8}$/.test(phoneDigits()));
         check($('[data-field="elpastas"]', form), !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test($('#elpastas').value.trim()));
 
@@ -296,23 +258,22 @@
     var showSuccess = function () {
         var parentFirst = $('#tevai').value.trim().split(/\s+/)[0];
         var kids = $$('.child', childrenEl).map(function (c) {
-            var m = Number($('[data-name="menuo"]', c).value);
-            return esc($('[data-name="vaikas"]', c).value.trim()) + ' <span class="muted">(' + $('[data-name="metai"]', c).value + ' m. ' + MENESIAI[m - 1].toLowerCase() + ')</span>';
+            return esc($('[data-name="vaikas"]', c).value.trim()) + ' <span class="muted">(' + $('[data-name="metai"]', c).value + ' m.)</span>';
         });
         var kgName = kgId.value === 'kita' ? kitaInput.value.trim() : kgInput.value;
         var digits = phoneDigits();
 
         $('#success-title').textContent = 'Ačiū, ' + parentFirst + '! Registraciją gavome.';
-        $('#success-lead').innerHTML =
-            'Patvirtinimą išsiuntėme el. paštu <strong>' + esc($('#elpastas').value.trim()) + '</strong>. Netrukus susisieksime telefonu.';
         $('#success-summary').innerHTML =
             '<dt>Darželis</dt><dd>' + esc(kgName) + (form.grupe.value.trim() ? ', gr. ' + esc(form.grupe.value.trim()) : '') + '</dd>' +
             '<dt>' + (kids.length > 1 ? 'Vaikai' : 'Vaikas') + '</dt><dd>' + kids.join('<br />') + '</dd>' +
-            '<dt>Telefonas</dt><dd>+370 ' + digits.slice(0, 3) + ' ' + digits.slice(3) + '</dd>';
+            '<dt>Telefonas</dt><dd>+370 ' + digits.slice(0, 3) + ' ' + digits.slice(3) + '</dd>' +
+            '<dt>El. paštas</dt><dd>' + esc($('#elpastas').value.trim()) + '</dd>';
 
         form.hidden = true;
-        var asideSteps = $('.reg-aside .next-steps');
-        if (asideSteps) asideSteps.hidden = true;
+        $$('.reg-simple > .h1, .reg-simple > .lead').forEach(function (el) {
+            el.hidden = true;
+        });
         var success = $('#success');
         success.hidden = false;
         $('#form-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -331,7 +292,6 @@
         if (k) {
             kgId.value = k.id;
             kgInput.value = k.pavadinimas;
-            $('input[name="miestas"][value="' + k.miestas + '"]', form).checked = true;
         }
     }
 })();
